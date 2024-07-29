@@ -44,6 +44,12 @@ replay_preset_map = {
 }
 replay_preset = replay_preset_map.get(replay_preset_choice, pb2.ReplayPreset.LATEST)
 
+# Prompt for replay ID if CUSTOM preset is chosen
+replay_id = None
+if replay_preset == pb2.ReplayPreset.CUSTOM:
+    replay_id_input = input("Enter the replay ID (in hex format)(You are entering the last recieved Id you saw, this will give you all events after that Id): ").strip()
+    replay_id = bytes.fromhex(replay_id_input) if replay_id_input else None
+
 # Initialize semaphore
 semaphore = threading.Semaphore(1)
 
@@ -117,11 +123,17 @@ with grpc.secure_channel('api.pubsub.salesforce.com:7443', creds) as channel:
     def fetchReqStream(topic):
         while True:
             semaphore.acquire()
+            replay_id_bytes = replay_id if replay_id and replay_preset == pb2.ReplayPreset.CUSTOM else b''
+            if isinstance(replay_id_bytes, str):
+                replay_id_bytes = bytes.fromhex(replay_id_bytes)
+            
             yield pb2.FetchRequest(
                 topic_name=topic,
                 replay_preset=replay_preset,  # User-selected replay preset
-                num_requested=num_requested  # User-specified number of events to request at a time
+                num_requested=num_requested,  # User-specified number of events to request at a time
+                replay_id=replay_id_bytes
             )
+
 
     # Function to decode Avro payloads
     def decode(schema, payload):
@@ -141,8 +153,17 @@ with grpc.secure_channel('api.pubsub.salesforce.com:7443', creds) as channel:
         if event.events:
             semaphore.release()
             logging.info(f"Number of events received: {len(event.events)}")
-            payloadbytes = event.events[0].event.payload
-            schemaid = event.events[0].event.schema_id
+            
+            # Accessing the first event's payload and schema
+            event_data = event.events[0]
+            payloadbytes = event_data.event.payload
+            schemaid = event_data.event.schema_id
+
+            # Access the replay ID
+            replay_id = event_data.replay_id.hex()
+            logging.info(f"Replay ID: {replay_id}")
+
+            # Decode the payload
             schema = stub.GetSchema(pb2.SchemaRequest(schema_id=schemaid), metadata=authmetadata).schema_json
             decoded = decode(schema, payloadbytes)
             
