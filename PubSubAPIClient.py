@@ -28,6 +28,7 @@ debug_choice = input("Debug all events? (Yes/No): ").strip().lower()
 debug_all = debug_choice in ['yes', 'true', 'y', 't']
 
 consumer_key = input("Enter the consumer key: ").strip()
+org_id = input("Enter the organization ID: ").strip()
 username = input("Enter the username: ").strip()
 private_key_path = input("Enter the path to your private key (PEM file): ").strip()
 private_key_passphrase = getpass.getpass("Enter the passphrase for the private key: ").strip().encode()
@@ -107,7 +108,7 @@ print(f"Instance URL: {instance_url}")
 authmetadata = (
     ('accesstoken', access_token),
     ('instanceurl', instance_url),
-    ('tenantid', '00D5r0000004dCx')  # Replace with your actual Org ID if different
+    ('tenantid', org_id)  # Replace with your actual Org ID if different
 )
 
 # Read SSL certificates for secure gRPC connections
