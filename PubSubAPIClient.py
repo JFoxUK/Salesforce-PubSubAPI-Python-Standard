@@ -169,10 +169,10 @@ with grpc.secure_channel('api.pubsub.salesforce.com:7443', creds) as channel:
             decoded = decode(schema, payloadbytes)
             
             # Parse and pretty-print the PolicyResults field
-            if 'PolicyResults' in decoded:
+            if 'PolicyResults__c' in decoded:
                 try:
-                    policy_results = json.loads(decoded['PolicyResults'])
-                    decoded['PolicyResults'] = policy_results
+                    policy_results = json.loads(decoded['PolicyResults__c'])
+                    decoded['PolicyResults__c'] = policy_results
 
                     # Separate log for policy violations
                     violated_policies = []
