@@ -166,33 +166,35 @@ with grpc.secure_channel('api.pubsub.salesforce.com:7443', creds) as channel:
 
             # Decode the payload
             schema = stub.GetSchema(pb2.SchemaRequest(schema_id=schemaid), metadata=authmetadata).schema_json
-            decoded = decode(schema, payloadbytes)
+            event_data = decode(schema, payloadbytes)
             
-            # Parse and pretty-print the PolicyResults field
-            if 'PolicyResults__c' in decoded:
+            # Handle PolicyResults__c or PolicyResults field
+            if 'PolicyResults__c' in event_data or 'PolicyResults' in event_data:
+                policy_results_key = 'PolicyResults__c' if 'PolicyResults__c' in event_data else 'PolicyResults'
                 try:
-                    policy_results = json.loads(decoded['PolicyResults__c'])
-                    decoded['PolicyResults__c'] = policy_results
+                    policy_results = json.loads(event_data[policy_results_key])
+                    event_data[policy_results_key] = policy_results
 
-                    # Separate log for policy violations
-                    violated_policies = []
-                    
-                    for policy in policy_results:
-                        if policy.get('passed') == 'false':
-                            violated_policies.append(policy)
-                            logging.warning(f"{Fore.RED}*** Policy Violation ***\n{json.dumps(policy, indent=4)}{Style.RESET_ALL}\n")
-                    
+                    violated_policies = [
+                        policy for policy in policy_results if policy.get('passed') == 'false'
+                    ]
+
+                    # Log violated policies
+                    for policy in violated_policies:
+                        logging.debug(f"*** Policy Violation ***\n{json.dumps(policy, indent=4)}\n")
+
+                    # Debug all or only policy violations
                     if violated_policies:
                         logging.debug(f"Violated Policies:\n{json.dumps(violated_policies, indent=4)}")
                     
                     # Debug all or only policy violations
                     if debug_all or violated_policies:
-                        logging.info(f"Received Event:\n{json.dumps(decoded, indent=4)}")
+                        logging.info(f"Received Event:\n{json.dumps(event_data, indent=4)}")
                 except json.JSONDecodeError as e:
                     logging.error(f"Error parsing PolicyResults: {e}")
             else:
                 # In case of no PolicyResults but debug_all is True
                 if debug_all:
-                    logging.info(f"Received Event:\n{json.dumps(decoded, indent=4)}")
+                    logging.info(f"Received Event:\n{json.dumps(event_data, indent=4)}")
         else:
             logging.info(f"[{datetime.now().strftime('%b %d, %Y %I:%M%p %Z')}] The subscription is active.")
